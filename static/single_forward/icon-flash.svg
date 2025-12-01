@@ -1,0 +1,15 @@
+<svg width="96" height="96" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="flashGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5F6D"/>
+      <stop offset="100%" stop-color="#FFC371"/>
+    </linearGradient>
+    <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F172A" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="42" fill="none" stroke="url(#ringGradient)" stroke-width="4"/>
+  <path d="M60 10L26 58h18l-12 34 34-48H48l12-34z" fill="url(#flashGradient)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+</svg>
+

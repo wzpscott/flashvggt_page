@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="FlashVGGT: Efficient and Scalable Visual Geometry Transformers with Compressed Descriptor Attention.">
+  <meta name="keywords" content="FlashVGGT">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- <title>Hybrid Radiance Fields for Efficient and Accurate Novel View Synthesis</title> -->
+  <title>FlashVGGT</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+
+  <!-- Image Comparison Slider -->
+  <!-- https://github.com/sneas/img-comparison-slider -->
+  <script defer src="https://cdn.jsdelivr.net/npm/img-comparison-slider@8/dist/index.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/img-comparison-slider@8/dist/styles.css" />
+
+
+  <link rel="icon" type="image/svg+xml" href="./static/single_forward/icon-flash.svg">
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-2 publication-title">
+            <div class="fancy-title" style="display: block;">FlashVGGT</div>
+            <div style="display: block; color:#1F2A44">Efficient and Scalable Visual Geometry Transformers with Compressed Descriptor Attention</div>
+          </h1>
+
+          <div class="is-size-4 publication-authors">
+            <span class="author-block">
+              <b style="color: #676666;">Zipeng Wang, Dan Xu</b>
+            </span>
+            <div class="has-text-grey" style="margin-top: 0.25rem;">
+              The Hong Kong University of Science and Technology
+            </div>
+          </div>
+
+          <div class="buttons is-centered" style="margin-top: 1.25rem; gap: 0.75rem;">
+            <a class="button is-small is-dark" href="#" target="_blank" rel="noreferrer">
+              <span class="icon"><i class="fas fa-file-alt"></i></span>
+              <span>ArXiv</span>
+            </a>
+            <a class="button is-small is-link" href="#" target="_blank" rel="noreferrer">
+              <span class="icon"><i class="fab fa-github"></i></span>
+              <span>GitHub</span>
+            </a>
+            <a class="button is-small is-warning" href="#" target="_blank" rel="noreferrer">
+              <span class="icon"><i class="fas fa-database"></i></span>
+              <span>Hugging Face</span>
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="abstract" style="background: #fefbf6;">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-four-fifths">
+        <div class="box" style="box-shadow: 0 18px 45px rgba(10,10,10,0.06); border: 1px solid #f2e8da;">
+          <div class="content" style="max-width: 860px; margin: 0 auto;">
+            <div class="box has-background-warning-light tldr-highlight mb-5" style="border-left: 4px solid #FF5F6D;">
+              <span class="tag is-warning is-light is-medium has-text-weight-semibold" style="margin-right: 0.75rem;">
+                TL;DR
+              </span>
+              <b>Accelerate VGGT with more efficient global attention for ~10x faster inference on 1K images and scaling to 3K+ images.</b>
+            </div>
+            <h2 class="title is-3 has-text-centered">Abstract</h2>
+            <div class="content has-text-justified">
+              <p>
+                3D reconstruction from multi-view images is a core challenge in computer vision. Recently, feed-forward methods have emerged as efficient and robust alternatives to traditional per-scene optimization techniques. Among them, state-of-the-art models like the Visual Geometry Grounding Transformer (VGGT) leverage full self-attention over all image tokens to capture global relationships. However, this approach suffers from poor scalability due to the quadratic complexity of self-attention and the large number of tokens generated in long image sequences.
+                In this work, we introduce FlashVGGT, an efficient alternative that addresses this bottleneck through a descriptor-based attention mechanism. Instead of applying dense global attention across all tokens, FlashVGGT compresses spatial information from each frame into a compact set of <b>descriptor tokens</b>. 
+                Global attention is then computed as cross-attention between the full set of image tokens and this smaller descriptor set, significantly reducing computational overhead.
+                Moreover, the compactness of the descriptors enables online inference over long sequences via a chunk-recursive mechanism that reuses cached descriptors from previous chunks. Experimental results show that FlashVGGT achieves reconstruction accuracy competitive with VGGT while reducing inference time to just 9.3% of VGGT for 1,000 images, and scaling efficiently to sequences exceeding 3,000 images.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background: #f8f9fb;">
+  <div class="container is-max-desktop">
+    <div class="box motivation-box">
+      <div class="is-centered has-text-centered" style="padding-bottom: 1.5rem;">
+        <h2 class="title is-3">Motivation</h2>
+        <p class="subtitle is-5 has-text-grey">Why compress global attention for long sequence reconstruction?</p>
+      </div>
+      <div class="columns motivation-figures is-variable is-4">
+        <div class="column">
+          <figure class="image motivation-figure">
+            <img src="static/single_forward/figure2(a).png" alt="VGGT global attention latency breakdown">
+          </figure>
+        </div>
+        <div class="column">
+          <figure class="image motivation-figure">
+            <img src="static/single_forward/figure2(b).png" alt="Attention sparsity comparison">
+          </figure>
+        </div>
+      </div>
+      <div class="columns motivation-points is-variable is-4">
+        <div class="column">
+          <div class="notification is-white" style="border-left: 4px solid #3A7BD5; height: 100%;">
+            <p class="has-text-weight-semibold" style="color:#3a7bd5;">Global attention dominates inference time.</p>
+            <p>The global attention block is the primary computational bottleneck in VGGT, dominating total inference time.</p>
+          </div>
+        </div>
+        <div class="column">
+          <div class="notification is-white" style="border-left: 4px solid #FF8C42; height: 100%;">
+            <p class="has-text-weight-semibold" style="color:#ff8c42;">Global self-attention is highly sparse.</p>
+            <p>Global attention is highly sparse, with most scores concentrated near zero, making full self-attention inefficient, while frame attention is more uniform.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background: #fefbf6;">
+  <div class="container is-max-desktop">
+    <div class="box method-overview-box" style="box-shadow: 0 20px 50px rgba(10,10,10,0.08); border: 1px solid #f2e8da;">
+      <div class="is-centered has-text-centered" style="padding-bottom: 2rem;">
+        <h2 class="title is-3">Method Overview</h2>
+        <p class="subtitle is-5 has-text-grey">FlashVGGT swaps dense global attention with more efficient descriptor attention.</p>
+      </div>
+      <figure class="image" style="margin-bottom: 2rem;">
+        <img src="static/single_forward/framework.png" alt="FlashVGGT framework diagram" style="border-radius: 12px; width: 100%; height: auto;">
+      </figure>
+      <div class="content" style="max-width: 860px; margin: 0 auto;">
+        <!-- <h3 class="title is-4 has-text-centered" style="color:#1F2A44;">FlashVGGT swaps dense global attention with efficient descriptor attention.</h3> -->
+        <div class="columns is-multiline is-variable is-4">
+          <div class="column is-one-third-desktop is-full-mobile">
+            <div class="notification is-white" style="border-left: 4px solid #3A7BD5; height: 100%;">
+              <p class="has-text-weight-semibold" style="color:#3A7BD5;">Compressed Descriptor Tokens</p>
+              <p>Use spatial resampling to compress image tokens into a compact set of descriptor tokens.</p>
+            </div>
+          </div>
+          <div class="column is-one-third-desktop is-full-mobile">
+            <div class="notification is-white" style="border-left: 4px solid #FF8C42; height: 100%;">
+              <p class="has-text-weight-semibold" style="color:#FF8C42;">Descriptor-based Cross-Attention</p>
+              <p>Use image tokens as queries and descriptor tokens as keys/values to reduce computation.</p>
+            </div>
+          </div>
+          <div class="column is-one-third-desktop is-full-mobile">
+            <div class="notification is-white" style="border-left: 4px solid #61C49F; height: 100%;">
+              <p class="has-text-weight-semibold" style="color:#2B8C6B;">Chunk-Recursive Inference</p>
+              <p>Descriptors are cached and reused across chunks, enabling efficient inference over long sequences.</p>
+            </div>
+          </div>
+        </div>
+        <p class="has-text-centered has-text-weight-semibold" style="color:#3A7BD5;">
+          Complexity drops from O(N²) to O(N² / r²) (r ≈ 4), delivering ~10× faster inference empirically for 1K images.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background: #f8f9fb;">
+  <div class="container is-max-desktop">
+    <div class="box performance-comparison-box">
+    <div class="is-centered has-text-centered">
+        <h2 class="title is-3" style="padding-bottom: 0.5rem;">Performance Comparison</h2>
+        <p class="subtitle is-5 has-text-grey">FlashVGGT maintains accuracy while delivering large speedups across datasets.</p>
+    </div>
+      <figure class="image performance-comparison-figure">
+        <img src="./static/single_forward/horizontal_bar.png" alt="Performance comparison across scenes" class="performance-comparison-image">
+      </figure>
+        </div>
+      </div>
+</section>
+
+<section class="section" style="background: #fefbf6;">
+  <div class="container is-max-desktop">
+    <div class="box" style="box-shadow: 0 18px 45px rgba(10,10,10,0.06); border: 1px solid #f2e8da;">
+      <div class="is-centered has-text-centered">
+        <h2 class="title is-3" style="padding-bottom: 1rem;">Single-forward Reconstruction</h2>
+      </div>
+      <div class="comparison-section-frame">
+      <div class="scene-panel is-hidden" data-scene="pumpkin">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (373.87s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (373.87s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (373.87s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (78.4s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (78.4s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pumpkin/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (78.4s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pumpkin/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (36.84s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="breakfastroom">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (126.30s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (126.30s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (126.30s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (31.16s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (31.16s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (31.16s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/breakfastroom/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (16.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="person_tracking">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (125.25s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (125.25s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (125.25s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (37.98s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (37.98s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/person_tracking/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (37.98s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/person_tracking/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (15.89s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="scene_0046">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (260.24s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (260.24s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (260.24s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (72.70s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (72.70s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (72.70s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/scene_0046_02/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (27.27s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel" data-scene="colosseum">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (67.43s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (67.43s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (67.43s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (21.67s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (21.67s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/colosseum/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (21.67s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/colosseum/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (10.04s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="pyramid">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (57.01s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (57.01s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (57.01s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (19.21s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (19.21s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/pyramid/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (19.21s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/pyramid/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (9.20s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="garden">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (11.2s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (11.2s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (11.2s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (7.13s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (7.13s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/garden/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (7.13s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/garden/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (3.22s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="scene-panel is-hidden" data-scene="residence">
+        <div class="columns is-centered">
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view1/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (296.17s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view2/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (296.17s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view3/vggt.png" width="100%">
+                    <span class="bottom-left">VGGT (296.17s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+          <div class="column">
+            <div class="content">
+              <div class="view-panel" data-view="view1">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view1/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (128.29s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view1/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view2">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view2/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (128.29s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view2/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+              <div class="view-panel" data-view="view3">
+                <img-comparison-slider style="width: 100%;" hover="hover">
+                  <span slot="first" class="img-container">
+                    <img src="static/single_forward/residence/view3/fastvggt.png" width="100%">
+                    <span class="bottom-left">FastVGGT (128.29s)</span>
+                  </span>
+                  <span slot="second" class="img-container">
+                    <img src="static/single_forward/residence/view3/flashvggt.png" width="100%">
+                    <span class="bottom-right">FlashVGGT (29.78s)</span>
+                  </span>
+                </img-comparison-slider>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="has-text-centered mt-2 mb-3">
+        <div class="buttons view-toggle-buttons is-centered single-forward-view-buttons">
+          <button class="button is-light view-button is-active" data-view="view1">View1</button>
+          <button class="button is-light view-button" data-view="view2">View2</button>
+          <button class="button is-light view-button" data-view="view3">View3</button>
+        </div>
+      </div>
+      </div>
+      <div class="has-text-centered mt-4">
+        <div class="scene-toggle-buttons-container single-forward-scene-buttons">
+          <div class="buttons scene-toggle-buttons">
+            <button class="button scene-button is-active" data-scene="colosseum" title="Colosseum (584 images)">
+              <img src="static/single_forward/colosseum/overview.png" alt="Colosseum" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="pyramid" title="Pyramid (295 images)">
+              <img src="static/single_forward/pyramid/overview.png" alt="Pyramid" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="garden" title="Garden (185 images)">
+              <img src="static/single_forward/garden/overview.png" alt="Garden" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="residence" title="Residence (997 images)">
+              <img src="static/single_forward/residence/overview.png" alt="Residence" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="breakfastroom" title="Breakfast Room (584 images)">
+              <img src="static/single_forward/breakfastroom/overview.png" alt="Breakfast Room" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="person_tracking" title="Person Tracking (580 images)">
+              <img src="static/single_forward/person_tracking/overview.png" alt="Person Tracking" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="pumpkin" title="Pumpkin (1000 images)">
+              <img src="static/single_forward/pumpkin/overview.png" alt="Pumpkin" class="scene-overview-image">
+            </button>
+            <button class="button scene-button" data-scene="scene_0046" title="Scene 0046_02 (834 images)">
+              <img src="static/single_forward/scene_0046_02/overview.png" alt="Scene 0046_02" class="scene-overview-image">
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background: #f8f9fb;">
+  <div class="container is-max-desktop">
+    <div class="box" style="box-shadow: 0 18px 45px rgba(10,10,10,0.06); border: 1px solid #e3e8ef;">
+      <div class="is-centered has-text-centered">
+        <h2 class="title is-3" style="padding-bottom: 1rem;">Online Reconstruction</h2>
+      </div>
+      <div class="comparison-section-frame">
+        <div class="online-scene-panel" data-scene="rubble">
+          <div class="columns is-centered">
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view1/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (104.67s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view1/FlashVGGT.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view2/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (104.67s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view3/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (104.67s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view1/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (106.45s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view1/FlashVGGT.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view2/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (106.45s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/rubble/view3/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (106.45s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/rubble/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (47.58s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <div class="online-scene-panel is-hidden" data-scene="scene0200_00">
+          <div class="columns is-centered">
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view1/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (258.72s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view1/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view2/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (258.72s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view3/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (258.72s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view1/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (260.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view1/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view2/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (260.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene0200_00/view3/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (260.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene0200_00/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (237.52s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="online-scene-panel is-hidden" data-scene="scene20">
+          <div class="columns is-centered">
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view1/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (48.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view1/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view2/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (48.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view3/cut3r.png" width="100%">
+                      <span class="bottom-left">CUT3R (48.44s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+            <div class="column">
+              <div class="content">
+                <div class="online-view-panel" data-view="view1">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view1/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (48.87s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view1/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view2">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view2/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (48.87s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view2/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+                <div class="online-view-panel is-hidden" data-view="view3">
+                  <img-comparison-slider style="width: 100%;" hover="hover">
+                    <span slot="first" class="img-container">
+                      <img src="static/online/scene20/view3/ttt3r.png" width="100%">
+                      <span class="bottom-left">TTT3R (48.87s)</span>
+                    </span>
+                    <span slot="second" class="img-container">
+                      <img src="static/online/scene20/view3/flashvggt.png" width="100%">
+                      <span class="bottom-right">FlashVGGT (8.67s)</span>
+                    </span>
+                  </img-comparison-slider>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="has-text-centered mt-2 mb-4">
+          <div class="buttons view-toggle-buttons is-centered">
+            <button class="button is-light online-view-button is-active" data-view="view1">View1</button>
+            <button class="button is-light online-view-button" data-view="view2">View2</button>
+            <button class="button is-light online-view-button" data-view="view3">View3</button>
+          </div>
+        </div>
+
+        <div class="has-text-centered mt-2">
+          <div class="scene-toggle-buttons-container">
+            <div class="buttons scene-toggle-buttons online-scene-buttons">
+              <button class="button scene-button is-active" data-scene="rubble" title="Rubble (1600 images)">
+                <img src="static/online/rubble/overview.png" alt="Rubble" class="scene-overview-image">
+              </button>
+              <button class="button scene-button" data-scene="scene20" title="Scene20 (800 images)">
+                <img src="static/online/scene20/overview.png" alt="Scene20" class="scene-overview-image">
+              </button>
+              <button class="button scene-button" data-scene="scene0200_00" title="Scene0200_00 (4000 images)">
+                <img src="static/online/scene0200_00/overview.png" alt="Scene0200_00" class="scene-overview-image">
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const viewButtons = document.querySelectorAll('.single-forward-view-buttons .view-button');
+    const viewPanels = document.querySelectorAll('.view-panel');
+    const sceneButtons = document.querySelectorAll('.single-forward-scene-buttons .scene-button');
+    const scenePanels = document.querySelectorAll('.scene-panel');
+
+    // Scene switching
+    const setScene = (scene) => {
+      scenePanels.forEach((panel) => {
+        panel.classList.toggle('is-hidden', panel.dataset.scene !== scene);
+      });
+
+      sceneButtons.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.scene === scene);
+      });
+
+      // Reset to view1 when switching scenes
+      if (viewButtons.length > 0) {
+        setView('view1');
+      }
+    };
+
+    // View switching (scoped to current scene)
+    const setView = (view) => {
+      const activeScene = Array.from(scenePanels).find(panel => !panel.classList.contains('is-hidden'));
+      if (!activeScene) return;
+
+      const sceneViewPanels = activeScene.querySelectorAll('.view-panel');
+      sceneViewPanels.forEach((panel) => {
+        panel.classList.toggle('is-hidden', panel.dataset.view !== view);
+      });
+
+      viewButtons.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.view === view);
+      });
+    };
+
+    // Event listeners
+    if (sceneButtons.length > 0) {
+      sceneButtons.forEach((button) => {
+        button.addEventListener('click', () => setScene(button.dataset.scene));
+      });
+    }
+
+    if (viewButtons.length > 0) {
+      viewButtons.forEach((button) => {
+        button.addEventListener('click', () => setView(button.dataset.view));
+      });
+      setView('view1');
+    }
+
+    const onlineScenePanels = document.querySelectorAll('.online-scene-panel');
+    const onlineSceneButtons = document.querySelectorAll('.online-scene-buttons .scene-button');
+    const onlineViewButtons = document.querySelectorAll('.online-view-button');
+
+    const setOnlineView = (view) => {
+      const activeScene = Array.from(onlineScenePanels).find(panel => !panel.classList.contains('is-hidden'));
+      if (!activeScene) return;
+
+      const sceneViewPanels = activeScene.querySelectorAll('.online-view-panel');
+      sceneViewPanels.forEach((panel) => {
+        panel.classList.toggle('is-hidden', panel.dataset.view !== view);
+      });
+
+      onlineScenePanels.forEach((panel) => {
+        if (panel !== activeScene) {
+          panel.querySelectorAll('.online-view-panel').forEach(child => child.classList.add('is-hidden'));
+        }
+      });
+
+      onlineViewButtons.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.view === view);
+      });
+    };
+
+    const setOnlineScene = (scene) => {
+      onlineScenePanels.forEach((panel) => {
+        panel.classList.toggle('is-hidden', panel.dataset.scene !== scene);
+      });
+
+      onlineSceneButtons.forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.scene === scene);
+      });
+
+      if (onlineViewButtons.length > 0) {
+        setOnlineView('view1');
+      }
+    };
+
+    if (onlineSceneButtons.length > 0) {
+      onlineSceneButtons.forEach((button) => {
+        button.addEventListener('click', () => setOnlineScene(button.dataset.scene));
+      });
+      setOnlineScene(onlineSceneButtons[0].dataset.scene);
+    }
+
+    if (onlineViewButtons.length > 0) {
+      onlineViewButtons.forEach((button) => {
+        button.addEventListener('click', () => setOnlineView(button.dataset.view));
+      });
+      setOnlineView('view1');
+    }
+  });
+</script>
+</body>
+</html>

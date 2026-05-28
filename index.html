@@ -63,7 +63,7 @@
 <body>
 
   <section class="hero">
-    <div class="hero-body">
+    <div class="hero-body" style="padding-bottom: 1rem;">
       <div class="container is-max-widescreen">
         <div class="columns is-centered">
           <div class="column has-text-centered">
@@ -140,40 +140,25 @@
     </div>
   </section>
 
-  <!-- <section class="section" id="tldr" style="padding-bottom: 0;">
-    <div class="container is-max-widescreen">
-      <div class="columns is-centered">
-        <div class="column is-four-fifths">
-          <div class="box has-background-info-light tldr-highlight" style="border-left: 4px solid #3273dc; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-            <span class="tag is-info is-medium has-text-weight-semibold" style="margin-right: 0.75rem;">
-              TL;DR
-            </span>
-            <b>Accelerate VGGT with efficient global attention for ~10x faster inference on 1K images and scaling to 3K+ images.</b>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section> -->
-
-  <section class="section" style="padding-bottom: 0;">
+  <section class="section" style="padding-top: 1rem; padding-bottom: 0;">
     <div class="container is-max-widescreen">
       <div class="columns is-centered">
         <!-- <div class="column is-four-fifths"> -->
           <div class="column is-full">
           <div class="video-wrapper">
             <video id="main-video" poster="" autoplay controls muted loop playsinline height="100%" style="width: 100%;">
-              <source id="main-video-source" src="./static/videos/long_corridor/video.mov" type="video/mp4">
+              <source id="main-video-source" src="./static/videos/scannet/video.mov" type="video/mp4">
             </video>
-            <p id="video-title" class="has-text-centered" style="margin-top: 10px; font-size: 1.2rem;">VGGTLong-Corridor (2499 images)</p>
+            <p id="video-title" class="has-text-centered" style="margin-top: 10px; font-size: 1.2rem;">ScanNet-Scene0002 (5192 images)</p>
           </div>
           
           <div style="padding-top: 1rem;">
             <div class="selection-panel" id="videoSelectionPanel" style="width: 98% !important; height: 120px; margin-left: 1%;">
-              <img class="selectable-image selected" name="long_corridor">
+              <img class="selectable-image selected" name="scannet">
+              <img class="selectable-image" name="long_corridor">
               <img class="selectable-image" name="rubble">
               <img class="selectable-image" name="vkitti">
               <img class="selectable-image" name="pumpkin">
-              <img class="selectable-image" name="scannet">
             </div>
           </div>
         </div>
